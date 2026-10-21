@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Apex Arena 3D - Advanced Movement</title>
+<title>Apex Arena 3D - Offline Mode</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;700&family=Noto+Sans+JP:wght@500;700&display=swap" rel="stylesheet">
 <style>
@@ -24,7 +24,7 @@
   .card { background: var(--panel); padding: 14px 20px; min-width: 260px; border-left: 4px solid var(--red); text-align: left; }
   .card ol { margin: 6px 0 0; padding-left: 22px; color: var(--steel); }
   #user { display: flex; align-items: center; gap: 10px; }
-  #user img { width: 40px; height: 40px; border-radius: 50%; }
+  #user img { width: 40px; height: 40px; border-radius: 50%; background: var(--steel); }
   #hud { position: fixed; inset: 0; pointer-events: none; z-index: 5; }
   #cross { position: absolute; left: 50%; top: 50%; width: 18px; height: 18px; margin: -9px; border: 2px solid #fff; border-radius: 50%; opacity: 0.8; }
   #cross.hit { border-color: var(--red); transform: scale(1.5); }
@@ -47,17 +47,15 @@
 
 <div id="login" class="ov">
   <h1>APEX <b>ARENA</b></h1>
-  <p>3Dアリーナで敵部隊を倒し続けよう。</p>
-  <button id="btnLogin">Googleでログイン</button>
-  <p id="loginErr"></p>
+  <p>オフラインモード</p>
+  <button id="btnLogin">ゲームを始める</button>
 </div>
 
 <div id="menu" class="ov hide">
   <div id="user">
-    <img id="uImg" src="" alt="icon">
     <div style="text-align:left">
-      <b id="uName"></b>
-      <p id="uStat"></p>
+      <b id="uName">ゲストプレイヤー</b>
+      <p id="uStat">オフラインモード</p>
     </div>
   </div>
   <p>レジェンドを選択</p>
@@ -65,13 +63,18 @@
   <p id="legDesc"></p>
   <div class="row">
     <button id="btnStart">出撃</button>
-    <button id="btnOut" class="alt">ログアウト</button>
+    <button id="btnOut" class="alt">タイトルへ</button>
   </div>
   <div class="card">
-    <b>ランキング (最多キル)</b>
-    <ol id="board"></ol>
+    <b>遊び方</b>
+    <ol style="list-style: none; padding: 0;">
+      <li>WASD: 移動</li>
+      <li>Shift: スライディング</li>
+      <li>Space: ジャンプ</li>
+      <li>マウスホイール: ストレイフ / ジャンプ</li>
+      <li>壁に向かって前進 → ジャンプで壁蹴り</li>
+    </ol>
   </div>
-  <p>WASD 移動 / Shift スライディング / Space ジャンプ / マウスホイール上 ストレイフ加速 / ホイール下 ジャンプ<br>壁に向かって前進で壁登り → ジャンプでウォールバウンス</p>
 </div>
 
 <div id="pause" class="ov hide">
@@ -103,76 +106,14 @@
 
 <script type="module">
 import * as THREE from 'https://unpkg.com/three@0.160.0/build/three.module.js';
-import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
-import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
-import { getFirestore, doc, getDoc, setDoc, collection, query, orderBy, limit, getDocs, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 
-const firebaseConfig = {
-  apiKey: "AIzaSyDqkUSfY2goeCeFaCx3Z_1ZJU-NfnZMYPQ",
-  authDomain: "task111-9b8f8.firebaseapp.com",
-  projectId: "task111-9b8f8",
-  storageBucket: "task111-9b8f8.firebasestorage.app",
-  messagingSenderId: "194272968746",
-  appId: "1:194272968746:web:5ba2bf82290b9ba2838353"
-};
-
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db = getFirestore(app);
 const $ = id => document.getElementById(id);
 const show = (id, v) => $(id).classList.toggle('hide', !v);
 
-let user = null, profile = {};
+$('btnLogin').onclick = () => { show('login', 0); show('menu', 1); };$('btnOut').onclick = () => { show('menu', 0); show('login', 1); };
 
-$('btnLogin').onclick = async () => {$('loginErr').textContent = '';
-  try { await signInWithPopup(auth, new GoogleAuthProvider()); } 
-  catch(e) { $('loginErr').textContent = 'ログイン失敗: ' + (e.code || e.message); }
-};
-$('btnOut').onclick = () => signOut(auth);
-
-onAuthStateChanged(auth, async u => {
-  user = u;
-  if (!u) { show('login', 1); show('menu', 0); return; }
-  show('login', 0); show('menu', 1);
-  $('uName').textContent = u.displayName \vert{}\vert{} 'Player';$('uImg').src = u.photoURL || '';
-  await loadProfile(); loadBoard();
-});
-
-async function loadProfile() {
-  try {
-    const s = await getDoc(doc(db, 'players', user.uid));
-    profile = s.exists() ? s.data() : {};
-  } catch(e) { profile = {}; }
-  $('uStat').textContent = `出撃 ${profile.games || 0}回 / 総キル ${profile.totalKills || 0} / 最高ウェーブ ${profile.bestWave || 0}`;
-}
-
-async function loadBoard() {
-  const ol = $('board'); ol.innerHTML = '';
-  try {
-    const qs = await getDocs(query(collection(db, 'players'), orderBy('bestKills', 'desc'), limit(5)));
-    qs.forEach(d => {
-      const x = d.data();
-      const li = document.createElement('li');
-      li.textContent = `${x.name || 'Player'} - ${x.bestKills || 0}キル`;
-      ol.appendChild(li);
-    });
-    if (!ol.children.length) ol.innerHTML = '<li>記録なし</li>';
-  } catch(e) { ol.innerHTML = '<li>ランキング取得エラー</li>'; }
-}
-
-async function saveResult(kills, wave) {
-  $('saveMsg').textContent = '保存中...';
-  try {
-    const ref = doc(db, 'players', user.uid);
-    const s = await getDoc(ref);
-    const o = s.exists() ? s.data() : {};
-    await setDoc(ref, {
-      name: user.displayName || 'Player', photo: user.photoURL || '',
-      bestKills: Math.max(o.bestKills || 0, kills), bestWave: Math.max(o.bestWave || 0, wave),
-      totalKills: (o.totalKills || 0) + kills, games: (o.games || 0) + 1, legend: G.legend, updatedAt: serverTimestamp()
-    });
-    $('saveMsg').textContent = '戦績を保存しました';
-  } catch(e) { $('saveMsg').textContent = '保存失敗: ' + (e.code || e.message); }
+function saveResult(kills, wave) {
+  $('saveMsg').textContent = 'オフラインのため記録は保存されません';
 }
 
 const LEG = {
@@ -240,10 +181,9 @@ for (let i = 0; i < 44; i++) {
 addBox(0, -51, 104, 8, 2); addBox(0, 51, 104, 8, 2);
 addBox(-51, 0, 2, 8, 104); addBox(51, 0, 2, 8, 104);
 
-/* ---------- 武器・手モデル ---------- */
 const gun = new THREE.Group();
 const MT = (c, m=0.6, r=0.45) => new THREE.MeshStandardMaterial({ color: c, metalness: m, roughness: r });
-const dark = MT(0x1f2329), mid = MT(0x3a404a), poly = MT(0x15171b, 0.1, 0.8);
+const dark = MT(0x1f2329), poly = MT(0x15171b, 0.1, 0.8);
 const B = (w, h, d) => new THREE.BoxGeometry(w, h, d);
 const part = (geo, mat, x, y, z, rx=0) => {
   const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.rotation.x = rx;
@@ -256,7 +196,6 @@ flash.visible = false;
 gun.position.set(0.22, -0.2, -0.5);
 cam.add(gun);
 
-// 壁登り時の手
 const eMatHead = new THREE.MeshLambertMaterial({ color: 0xf0c8a0 });
 const leftHand = new THREE.Mesh(B(0.08, 0.08, 0.2), eMatHead);
 const rightHand = new THREE.Mesh(B(0.08, 0.08, 0.2), eMatHead);
@@ -265,27 +204,20 @@ rightHand.position.set(0.3, -0.2, -0.4);
 leftHand.visible = false; rightHand.visible = false;
 cam.add(leftHand); cam.add(rightHand);
 
-/* ---------- 敵のテクスチャ生成 (視認性向上) ---------- */
 const cv = document.createElement('canvas'); cv.width = 128; cv.height = 128;
 const ctx = cv.getContext('2d');
 ctx.fillStyle = '#111'; ctx.fillRect(0,0,128,128);
 ctx.fillStyle = '#ff2a2a'; ctx.fillRect(0,0,64,64); ctx.fillRect(64,64,64,64);
-const eTex = new THREE.CanvasTexture(cv);
-eTex.magFilter = THREE.NearestFilter;
+const eTex = new THREE.CanvasTexture(cv); eTex.magFilter = THREE.NearestFilter;
 const eMatBody = new THREE.MeshLambertMaterial({ map: eTex }); 
 const eMatLeg = new THREE.MeshLambertMaterial({ color: 0x222222 });
 
-/* ---------- 当たり判定 (壁の法線取得追加) ---------- */
 function collide(p, r, feet) {
-  let g = 0;
-  P.hitWall = false;
-  P.wallNx = 0; P.wallNz = 0;
-  
+  let g = 0; P.hitWall = false; P.wallNx = 0; P.wallNz = 0;
   for (const { b } of boxes) {
     if (p.x > b.min.x - r && p.x < b.max.x + r && p.z > b.min.z - r && p.z < b.max.z + r) {
-      if (b.max.y <= feet + 0.6) {
-        g = Math.max(g, b.max.y);
-      } else if (feet < b.max.y) {
+      if (b.max.y <= feet + 0.6) { g = Math.max(g, b.max.y); }
+      else if (feet < b.max.y) {
         P.hitWall = true;
         const a = b.max.x + r - p.x, c = p.x - (b.min.x - r);
         const d = b.max.z + r - p.z, e = p.z - (b.min.z - r);
@@ -296,18 +228,11 @@ function collide(p, r, feet) {
         else { p.z = b.min.z - r; P.wallNz = -1; }
       }
     }
-  }
-  return g;
+  } return g;
 }
 
-/* ---------- ゲーム状態 ---------- */
 const G = { running: false, over: false, legend: 'wraith' };
-const P = {
-  pos: new THREE.Vector3(), vy: 0, ground: true, yaw: 0, pitch: 0,
-  hp: 100, sh: 50, ammo: 30, reload: 0, fireT: 0, cd: 0, dash: 0, boost: 0,
-  kills: 0, wave: 0, kick: 0, eye: 1.7, adsT: 0, slide: 0, sdx: 0, sdz: -1, lx: 0, lz: -1, flashT: 0,
-  hitWall: false, wallNx: 0, wallNz: 0, wallClimb: 0
-};
+const P = { pos: new THREE.Vector3(), vy: 0, ground: true, yaw: 0, pitch: 0, hp: 100, sh: 50, ammo: 30, reload: 0, fireT: 0, cd: 0, dash: 0, boost: 0, kills: 0, wave: 0, kick: 0, eye: 1.7, adsT: 0, slide: 0, sdx: 0, sdz: -1, lx: 0, lz: -1, flashT: 0, hitWall: false, wallNx: 0, wallNz: 0, wallClimb: 0 };
 let enemies = [], tracers = [], keys = {};
 let fire = false, adsHeld = false, locked = false, waveWait = 0;
 const rc = new THREE.Raycaster();
@@ -315,9 +240,7 @@ const rc = new THREE.Raycaster();
 function spawnEnemy() {
   const g = new THREE.Group();
   const e = { g, hp: 100, cd: 1, side: Math.random() < 0.5 ? 1 : -1, meshes: [], state: 0, stateT: 0, vy: 0 };
-  const parts = [
-    [B(0.8, 1, 0.5), eMatBody, 0.95, 0], [B(0.7, 0.6, 0.4), eMatLeg, 0.3, 0], [new THREE.SphereGeometry(0.26, 10, 8), eMatHead, 1.7, 1]
-  ];
+  const parts = [[B(0.8, 1, 0.5), eMatBody, 0.95, 0], [B(0.7, 0.6, 0.4), eMatLeg, 0.3, 0], [new THREE.SphereGeometry(0.26, 10, 8), eMatHead, 1.7, 1]];
   for (const [geo, mat, y, head] of parts) {
     const m = new THREE.Mesh(geo, mat); m.position.y = y;
     m.userData = { enemy: e, head: !!head, baseY: y };
@@ -341,20 +264,15 @@ function banner(t) {
 
 function startGame() {
   G.legend = pick; G.running = true; G.over = false;
-  Object.assign(P, {
-    vy: 0, ground: true, yaw: 0, pitch: 0, hp: 100, sh: 50, ammo: 30,
-    reload: 0, fireT: 0, cd: 0, dash: 0, boost: 0, kills: 0, wave: 0,
-    kick: 0, eye: 1.7, adsT: 0, slide: 0, sdx: 0, sdz: -1, lx: 0, lz: -1, flashT: 0, wallClimb: 0
-  });
-  P.pos.set(0, 0, 0);
-  enemies.forEach(e => scene.remove(e.g)); enemies = [];
+  Object.assign(P, { vy: 0, ground: true, yaw: 0, pitch: 0, hp: 100, sh: 50, ammo: 30, reload: 0, fireT: 0, cd: 0, dash: 0, boost: 0, kills: 0, wave: 0, kick: 0, eye: 1.7, adsT: 0, slide: 0, sdx: 0, sdz: -1, lx: 0, lz: -1, flashT: 0, wallClimb: 0 });
+  P.pos.set(0, 0, 0); enemies.forEach(e => scene.remove(e.g)); enemies = [];
   adsHeld = fire = false;
   show('menu', 0); show('over', 0); show('hud', 1); show('pause', 0);
   nextWave(); ren.domElement.requestPointerLock();
 }
 
 $('btnStart').onclick = startGame;
-$('pause').onclick = () => ren.domElement.requestPointerLock();$('btnBack').onclick = async () => { show('over', 0); show('menu', 1); await loadProfile(); loadBoard(); };
+$('pause').onclick = () => ren.domElement.requestPointerLock();$('btnBack').onclick = () => { show('over', 0); show('menu', 1); };
 
 document.addEventListener('pointerlockchange', () => {
   locked = document.pointerLockElement === ren.domElement;
@@ -364,8 +282,7 @@ document.addEventListener('pointerlockchange', () => {
 window.addEventListener('mousemove', e => {
   if (!locked) return;
   const k = 0.0022 * (1 - 0.5 * P.adsT);
-  P.yaw -= e.movementX * k;
-  P.pitch = Math.max(-1.45, Math.min(1.45, P.pitch - e.movementY * k));
+  P.yaw -= e.movementX * k; P.pitch = Math.max(-1.45, Math.min(1.45, P.pitch - e.movementY * k));
 });
 
 window.addEventListener('mousedown', e => { if (e.button === 0) fire = true; if (e.button === 2) adsHeld = true; });
@@ -373,55 +290,33 @@ window.addEventListener('mouseup', e => { if (e.button === 0) fire = false; if (
 window.addEventListener('contextmenu', e => { if (G.running) e.preventDefault(); });
 
 function doJump() {
-  if (P.wallClimb > 0) {
-    // ウォールバウンス（壁ジャンプ）
-    P.vy = 12; 
-    P.sdx = P.wallNx * 1.5; P.sdz = P.wallNz * 1.5;
-    P.slide = 1.0; // 飛んでいる状態（スライド慣性）
-    P.wallClimb = 0;
-  } else if (P.ground || P.slide > 0) {
-    // スライディングジャンプまたは通常ジャンプ
-    P.vy = 8.5; P.ground = false;
-  }
+  if (P.wallClimb > 0) { P.vy = 12; P.sdx = P.wallNx * 1.5; P.sdz = P.wallNz * 1.5; P.slide = 1.0; P.wallClimb = 0; }
+  else if (P.ground || P.slide > 0) { P.vy = 8.5; P.ground = false; }
 }
 
 window.addEventListener('wheel', e => {
   if (!locked || !G.running) return;
   if (e.deltaY < 0) {
-    // マウス前ホールド (ストレイフ/微加速)
     const sy = Math.sin(P.yaw), cy = Math.cos(P.yaw);
-    P.sdx = -sy; P.sdz = -cy; // 推進ベクトルを視点へ即座に向ける (90度曲がる)
-    P.pos.x += -sy * 0.2; P.pos.z += -cy * 0.2; // 0.1ミリ動く(微加速)
-    if(P.slide > 0) P.slide = Math.max(P.slide, 0.5); // スライディング維持
-  } else if (e.deltaY > 0) {
-    // マウス後ろホールド (ジャンプ)
-    doJump();
-  }
+    P.sdx = -sy; P.sdz = -cy; P.pos.x += -sy * 0.2; P.pos.z += -cy * 0.2;
+    if(P.slide > 0) P.slide = Math.max(P.slide, 0.5);
+  } else if (e.deltaY > 0) { doJump(); }
 });
 
 window.addEventListener('keydown', e => {
   keys[e.code] = 1; if (e.code.startsWith('Shift')) keys.Shift = 1;
   if (!locked) return;
-  if (e.code === 'KeyR') reload();
-  if (e.code === 'KeyQ') ability();
-  
-  if (e.code.startsWith('Shift') && !e.repeat && P.ground && P.slide <= 0 && (keys.KeyW || keys.KeyA || keys.KeyS || keys.KeyD)) {
-    P.slide = 1.0; P.sdx = P.lx; P.sdz = P.lz;
-  }
+  if (e.code === 'KeyR') reload(); if (e.code === 'KeyQ') ability();
+  if (e.code.startsWith('Shift') && !e.repeat && P.ground && P.slide <= 0 && (keys.KeyW || keys.KeyA || keys.KeyS || keys.KeyD)) { P.slide = 1.0; P.sdx = P.lx; P.sdz = P.lz; }
   if (e.code === 'Space') { e.preventDefault(); doJump(); }
 });
-
-window.addEventListener('keyup', e => {
-  keys[e.code] = 0; if (e.code.startsWith('Shift')) keys.Shift = 0;
-});
+window.addEventListener('keyup', e => { keys[e.code] = 0; if (e.code.startsWith('Shift')) keys.Shift = 0; });
 
 function reload() { if (!P.reload && P.ammo < 30) P.reload = 1.6; }
 function ability() {
   if (P.cd > 0) return;
   P.cd = LEG[G.legend].cd;
-  if (G.legend === 'wraith') P.dash = 0.25;
-  else if (G.legend === 'lifeline') P.hp = Math.min(100, P.hp + 40);
-  else P.boost = 4;
+  if (G.legend === 'wraith') P.dash = 0.25; else if (G.legend === 'lifeline') P.hp = Math.min(100, P.hp + 40); else P.boost = 4;
 }
 
 function dmgPlayer(n) {
@@ -451,117 +346,80 @@ function shoot() {
   let end = org.clone().addScaledVector(dir, 120);
   
   if (hits.length) {
-    const h = hits[0]; end = h.point;
-    const e = h.object.userData.enemy;
+    const h = hits[0]; end = h.point; const e = h.object.userData.enemy;
     if (e) {
       e.hp -= h.object.userData.head ? 40 : 20;
       const c = $('cross'); c.classList.add('hit'); setTimeout(() => c.classList.remove('hit'), 90);
       if (e.hp <= 0) { scene.remove(e.g); enemies = enemies.filter(x => x !== e); P.kills++; }
     }
-  }
-  tracer(from, end, 0xffe27a);
+  } tracer(from, end, 0xffe27a);
 }
 
-async function die() {
+function die() {
   G.over = true; G.running = false; adsHeld = fire = false;
   cam.fov = 75; cam.updateProjectionMatrix(); document.exitPointerLock();
   show('hud', 0); show('pause', 0); show('over', 1);
   $('result').textContent = `ウェーブ ${P.wave} / キル ${P.kills}`;
-  await saveResult(P.kills, P.wave);
+  saveResult(P.kills, P.wave);
 }
 
 function update(dt) {
-  const f = (keys.KeyW ? 1 : 0) - (keys.KeyS ? 1 : 0);
-  const r = (keys.KeyD ? 1 : 0) - (keys.KeyA ? 1 : 0);
+  const f = (keys.KeyW ? 1 : 0) - (keys.KeyS ? 1 : 0), r = (keys.KeyD ? 1 : 0) - (keys.KeyA ? 1 : 0);
   const sy = Math.sin(P.yaw), cy = Math.cos(P.yaw);
   let mx = -sy * f + cy * r, mz = -cy * f - sy * r;
-  
   const l = Math.hypot(mx, mz);
   if (l > 1) { mx /= l; mz /= l; }
   if (mx || mz) { P.lx = mx; P.lz = mz; }
-  
   const crouch = keys.Shift && P.slide <= 0 && P.ground;
   let sp = (crouch ? 3.5 : 9) * (P.boost > 0 ? 1.5 : 1) * (adsHeld ? 0.65 : 1);
   
   if (P.slide > 0) {
-    P.slide -= dt;
-    if ((!keys.Shift && P.ground) || P.wallClimb > 0) P.slide = 0;
-    mx = P.sdx; mz = P.sdz;
-    sp = 7 + 10 * Math.max(0, P.slide);
+    P.slide -= dt; if ((!keys.Shift && P.ground) || P.wallClimb > 0) P.slide = 0;
+    mx = P.sdx; mz = P.sdz; sp = 7 + 10 * Math.max(0, P.slide);
   }
   
   P.pos.x += mx * sp * dt; P.pos.z += mz * sp * dt;
-  if (P.dash > 0) {
-    P.dash -= dt; P.pos.x += -sy * 26 * dt; P.pos.z += -cy * 26 * dt;
-  }
+  if (P.dash > 0) { P.dash -= dt; P.pos.x += -sy * 26 * dt; P.pos.z += -cy * 26 * dt; }
   P.pos.x = Math.max(-48, Math.min(48, P.pos.x)); P.pos.z = Math.max(-48, Math.min(48, P.pos.z));
-  
-  P.vy -= 22 * dt; 
-  P.pos.y += P.vy * dt;
-  
+  P.vy -= 22 * dt; P.pos.y += P.vy * dt;
   const g = collide(P.pos, 0.4, P.pos.y);
   
-  // 壁登り判定
   if (P.hitWall && keys.KeyW && P.pos.y > g + 0.5 && P.vy < 5) {
-    P.wallClimb += dt;
-    if(P.wallClimb < 0.6) { // 登れる上限時間
-      P.vy = 4; // 上昇
-      P.ground = false;
-    }
-  } else {
-    P.wallClimb = 0;
-  }
+    P.wallClimb += dt; if(P.wallClimb < 0.6) { P.vy = 4; P.ground = false; }
+  } else { P.wallClimb = 0; }
 
-  // 手と銃の表示切替
   const isClimbing = P.wallClimb > 0;
-  leftHand.visible = rightHand.visible = isClimbing;
-  gun.visible = !isClimbing;
+  leftHand.visible = rightHand.visible = isClimbing; gun.visible = !isClimbing;
 
-  if (P.pos.y <= g) {
-    P.pos.y = g; P.vy = 0; P.ground = true;
-  } else {
-    P.ground = false;
-  }
-  
+  if (P.pos.y <= g) { P.pos.y = g; P.vy = 0; P.ground = true; } else { P.ground = false; }
   P.cd = Math.max(0, P.cd - dt); P.boost = Math.max(0, P.boost - dt);
-  
   P.fireT -= dt; P.kick = Math.max(0, P.kick - dt * 0.4);
   if (P.reload > 0) { P.reload -= dt; if (P.reload <= 0) { P.reload = 0; P.ammo = 30; } }
   if (fire && P.fireT <= 0 && !P.reload && !isClimbing) { if (P.ammo > 0) shoot(); else reload(); }
   
-  // 敵AI処理 (ジャンプ・スライディング・ストレイフ追加)
   const eye = new THREE.Vector3(P.pos.x, P.pos.y + P.eye - 0.1, P.pos.z);
   for (const e of enemies) {
     e.stateT -= dt;
     if (e.stateT <= 0) {
-      e.stateT = 1 + Math.random() * 2;
-      e.state = Math.floor(Math.random() * 3); // 0:走る, 1:スライディング, 2:ジャンプ
-      e.side = (Math.random() < 0.5 ? 1 : -1) * (1 + Math.random()); // ストレイフ方向変更
+      e.stateT = 1 + Math.random() * 2; e.state = Math.floor(Math.random() * 3);
+      e.side = (Math.random() < 0.5 ? 1 : -1) * (1 + Math.random());
       if(e.state === 2 && e.g.position.y - collide(e.g.position, 0.45, e.g.position.y) < 0.1) e.vy = 7;
     }
-
     const p = e.g.position;
     const dx = P.pos.x - p.x, dz = P.pos.z - p.z, d = Math.hypot(dx, dz) || 1;
     let spd = Math.min(5, 3 + P.wave * 0.2);
-    
-    // スライディング状態なら加速と姿勢低く
     if (e.state === 1) { spd *= 1.8; e.meshes.forEach(m => m.position.y = m.userData.baseY * 0.5); }
     else { e.meshes.forEach(m => m.position.y = m.userData.baseY); }
 
     let vx = 0, vz = 0;
     if (d > 14) { vx = dx / d; vz = dz / d; } else if (d < 7) { vx = -dx / d; vz = -dz / d; }
-    
-    vx += -dz / d * 0.6 * e.side; vz += dx / d * 0.6 * e.side; // ストレイフ(横移動)
+    vx += -dz / d * 0.6 * e.side; vz += dx / d * 0.6 * e.side;
     
     p.x += vx * spd * dt; p.z += vz * spd * dt;
     p.x = Math.max(-48, Math.min(48, p.x)); p.z = Math.max(-48, Math.min(48, p.z));
-    
-    // 敵の重力・ジャンプ処理
-    e.vy -= 22 * dt;
-    p.y += e.vy * dt;
+    e.vy -= 22 * dt; p.y += e.vy * dt;
     const eg = collide(p, 0.45, p.y);
     if(p.y <= eg) { p.y = eg; e.vy = 0; }
-    
     e.g.rotation.y = Math.atan2(dx, dz);
     e.cd -= dt;
     
@@ -570,7 +428,6 @@ function update(dt) {
       const o = new THREE.Vector3(p.x, p.y + (e.state===1 ? 0.75 : 1.5), p.z);
       const v = eye.clone().sub(o), dist = v.length();
       rc.set(o, v.normalize()); rc.far = dist;
-      
       if (rc.intersectObjects(boxes.map(b => b.m), false).length === 0) {
         const hit = Math.random() < Math.max(0.15, Math.min(0.7, 0.8 - dist / 60)) * (P.slide > 0 ? 0.5 : 1);
         tracer(o, hit ? eye : eye.clone().add(new THREE.Vector3((Math.random() - 0.5) * 3, (Math.random() - 0.5) * 2, (Math.random() - 0.5) * 3)), 0xff5a4a);
@@ -580,28 +437,22 @@ function update(dt) {
   }
   
   if (!enemies.length && !G.over) { waveWait += dt; if (waveWait > 2.5) { waveWait = 0; nextWave(); } }
-  
   P.eye += ((P.slide > 0 ? 0.8 : crouch ? 1.1 : 1.7) - P.eye) * Math.min(1, dt * 14);
-  
-  // 壁登り時はカメラを少し揺らす
   let clbBob = isClimbing ? Math.sin(performance.now() / 60) * 0.05 : 0;
   cam.position.set(P.pos.x, P.pos.y + P.eye + clbBob, P.pos.z);
   cam.rotation.set(P.pitch, P.yaw, 0);
-  
   P.adsT += ((adsHeld && !isClimbing ? 1 : 0) - P.adsT) * Math.min(1, dt * 12);
   cam.fov = 75 - 30 * P.adsT; cam.updateProjectionMatrix();
-  
   const L = (a, b) => a + (b - a) * P.adsT;
   const bob = Math.sin(performance.now() / 90) * 0.004 * ((mx || mz) ? 1 : 0) * (1 - P.adsT);
   gun.position.set(L(0.22, 0), L(-0.2, -0.0945) + bob, L(-0.5, -0.34) + P.kick * 1.5);
   gun.rotation.x = P.kick * 2;
-  
   if (P.flashT > 0) { P.flashT -= dt; if (P.flashT <= 0) flash.visible = false; }
   $('dot').style.opacity = P.adsT > 0.85 ? 1 : 0;
   $('scope').style.opacity = P.adsT;
-  $('cross').style.visibility = P.adsT > 0.05 ? 'hidden' : 'visible';$('hp').firstChild.style.width = Math.max(0, P.hp) + '%';
-  $('sh').firstChild.style.width = P.sh * 2 + '\%';$('am').textContent = P.ammo;
-  $('reload').textContent = P.reload ? 'リロード中…' : '30発マガジン';
+  $('cross').style.visibility = P.adsT > 0.05 ? 'hidden' : 'visible';
+  $('hp').firstChild.style.width = Math.max(0, P.hp) + '\%';$('sh').firstChild.style.width = P.sh * 2 + '%';
+  $('am').textContent = P.ammo; $('reload').textContent = P.reload ? 'リロード中…' : '30発マガジン';
   $('wave').textContent = `ウェーブ ${P.wave}`; $('kills').textContent = `キル ${P.kills}`;
   $('abil').textContent = `${LEG[G.legend].n}  Q: ${P.cd > 0 ? Math.ceil(P.cd) + '秒' : '使用可能'}`;
 }
@@ -609,13 +460,10 @@ function update(dt) {
 let last = performance.now();
 function loop(t) {
   requestAnimationFrame(loop);
-  const dt = Math.min(0.05, (t - last) / 1000);
-  last = t;
+  const dt = Math.min(0.05, (t - last) / 1000); last = t;
   if (G.running && locked) update(dt);
   for (const x of tracers) x.t -= dt;
-  tracers = tracers.filter(x => {
-    if (x.t <= 0) { scene.remove(x.l); x.l.geometry.dispose(); return false; } return true;
-  });
+  tracers = tracers.filter(x => { if (x.t <= 0) { scene.remove(x.l); x.l.geometry.dispose(); return false; } return true; });
   ren.render(scene, cam);
 }
 
