@@ -4,8 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Apex Arena 3D - Multi Weapons</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;700&family=Noto+Sans+JP:wght@500;700&display=swap" rel="stylesheet">
+<link rel="preconnect" href="[https://fonts.googleapis.com](https://fonts.googleapis.com)">
+<link href="[https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;700&family=Noto+Sans+JP:wght@500;700&display=swap](https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;700&family=Noto+Sans+JP:wght@500;700&display=swap)" rel="stylesheet">
 <style>
   :root { --bg: #10131a; --panel: #1a2030; --red: #ff4d3d; --steel: #8fa3b8; --ice: #e8f1f8; --sh: #4cc3ff; }
   * { box-sizing: border-box; }
@@ -68,6 +68,7 @@
       <li>1, 2, 3: 武器切り替え (AR / SMG / SR)</li>
       <li>WASD: 移動 / Shift: スライディング / Space: ジャンプ</li>
       <li>右クリック: エイム(ADS) / R: リロード / Q: アビリティ</li>
+      <li>壁に前進 → ジャンプ: ウォールバウンス</li>
     </ol>
   </div>
 </div>
@@ -104,7 +105,7 @@
 </div>
 
 <script type="module">
-import * as THREE from 'https://unpkg.com/three@0.160.0/build/three.module.js';
+import * as THREE from '[https://unpkg.com/three@0.160.0/build/three.module.js](https://unpkg.com/three@0.160.0/build/three.module.js)';
 
 const $ = id => document.getElementById(id);
 const show = (id, v) => $(id).classList.toggle('hide', !v);
@@ -261,12 +262,9 @@ window.addEventListener('contextmenu', e => { if (G.running) e.preventDefault();
 window.addEventListener('keydown', e => {
   keys[e.code] = 1; if (e.code.startsWith('Shift')) keys.Shift = 1;
   if (!locked) return;
-  
-  // 武器切り替え
   if (e.code === 'Digit1') switchWep(0);
   if (e.code === 'Digit2') switchWep(1);
   if (e.code === 'Digit3') switchWep(2);
-
   if (e.code === 'KeyR') reload(); if (e.code === 'KeyQ') if (P.cd <= 0) { P.cd = LEG[G.legend].cd; if (G.legend === 'wraith') P.dash = 0.25; else P.boost = 4; }
   if (e.code.startsWith('Shift') && !e.repeat && P.ground && P.slide <= 0 && (keys.KeyW || keys.KeyA || keys.KeyS || keys.KeyD)) { P.slide = 1.0; P.sdx = P.lx; P.sdz = P.lz; }
   if (e.code === 'Space') { e.preventDefault(); if (P.ground || P.slide > 0) { P.vy = 8.5; P.ground = false; } }
@@ -275,8 +273,7 @@ window.addEventListener('keyup', e => { keys[e.code] = 0; if (e.code.startsWith(
 
 function switchWep(i) {
   if (P.wIdx === i) return;
-  P.wIdx = i; P.reload = 0; P.fireT = 0.4; // 持ち替えディレイ
-  // 武器を持ち替えた際のUIリセット用
+  P.wIdx = i; P.reload = 0; P.fireT = 0.4;
   $('wepName').textContent = WEP[i].n;
 }
 
@@ -334,7 +331,7 @@ function update(dt) {
   const bobX = Math.cos(P.bobT) * 0.04 * (1 - P.adsT);
 
   P.cd = Math.max(0, P.cd - dt); P.boost = Math.max(0, P.boost - dt);
-  P.fireT -= dt; P.kick = Math.max(0, P.kick - dt * (w.kick * 10)); // 反動の戻りも武器依存
+  P.fireT -= dt; P.kick = Math.max(0, P.kick - dt * (w.kick * 10));
   muzzleLight.intensity = Math.max(0, muzzleLight.intensity - dt * 50);
 
   let relY = 0, relRotX = 0, relRotZ = 0;
@@ -386,10 +383,7 @@ function update(dt) {
   cam.position.set(P.pos.x, P.pos.y + P.eye + bobY, P.pos.z); cam.rotation.set(P.pitch, P.yaw, 0);
   
   P.adsT += ((adsHeld ? 1 : 0) - P.adsT) * Math.min(1, dt * 12);
-  
-  // 武器固有のスコープ倍率（FOV）を適用
-  cam.fov = 75 - (75 - w.fov) * P.adsT; 
-  cam.updateProjectionMatrix();
+  cam.fov = 75 - (75 - w.fov) * P.adsT; cam.updateProjectionMatrix();
   
   const L = (a, b) => a + (b - a) * P.adsT;
   gun.position.set(L(0.22, 0) + bobX, L(-0.2, -0.0945) + bobY + relY, L(-0.5, -0.34) + P.kick * 1.5);
@@ -398,7 +392,7 @@ function update(dt) {
   if (P.flashT > 0) { P.flashT -= dt; if (P.flashT <= 0) flash.visible = false; }
   $('dot').style.opacity = (P.wIdx !== 2 && P.adsT > 0.85) ? 1 : 0;
   $('scope').style.opacity = P.adsT;
-  $('cross').style.visibility = P.adsT > 0.05 ? 'hidden' : 'visible';$('sniper-cross').style.opacity = (P.wIdx === 2 && P.adsT > 0.85) ? 1 : 0; // スナイパー専用レティクル
+  $('cross').style.visibility = P.adsT > 0.05 ? 'hidden' : 'visible';$('sniper-cross').style.opacity = (P.wIdx === 2 && P.adsT > 0.85) ? 1 : 0;
   
   $('hp').firstChild.style.width = Math.max(0, P.hp) + '\%';$('sh').firstChild.style.width = P.sh * 2 + '%';
   $('am').textContent = P.ammo[P.wIdx];$('reload').textContent = P.reload ? 'リロード中…' : `${w.mag}発マガジン`;
