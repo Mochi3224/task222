@@ -42,14 +42,6 @@
   #flash { position: absolute; inset: 0; box-shadow: inset 0 0 160px rgba(255, 40, 30, 0.9); opacity: 0; transition: opacity 0.25s; }
   @media (prefers-reduced-motion: reduce) { #banner, #flash, #cross { transition: none; } }
 </style>
-<!-- スペース問題やバージョン不整合を防ぐため、Three.jsを直接import -->
-<script type="importmap">
-  {
-    "imports": {
-      "three": "https://unpkg.com/three@0.160.0/build/three.module.js"
-    }
-  }
-</script>
 </head>
 <body>
 
@@ -110,12 +102,13 @@
 </div>
 
 <script type="module">
-import * as THREE from 'three';
+// importmapを使わず、すべてのライブラリを直接URLから読み込みます
+import * as THREE from 'https://unpkg.com/three@0.160.0/build/three.module.js';
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
 import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
 import { getFirestore, doc, getDoc, setDoc, collection, query, orderBy, limit, getDocs, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 
-// Firebase初期化 (提供された設定を使用)
+// Firebase初期化
 const firebaseConfig = {
   apiKey: "AIzaSyDqkUSfY2goeCeFaCx3Z_1ZJU-NfnZMYPQ",
   authDomain: "task111-9b8f8.firebaseapp.com",
@@ -139,6 +132,7 @@ $('btnLogin').onclick = async () => {$('loginErr').textContent = '';
   try {
     await signInWithPopup(auth, new GoogleAuthProvider());
   } catch(e) {
+    // ログインエラー時に原因を表示
     $('loginErr').textContent = 'ログイン失敗: ' + (e.code || e.message);
   }
 };
@@ -314,17 +308,17 @@ const part = (geo, mat, x, y, z, rx=0) => {
   return m;
 };
 
-part(B(0.06, 0.09, 0.34), dark, 0, 0, 0); // レシーバー
-part(B(0.05, 0.015, 0.3), mid, 0, 0.0525, 0); // トップ
-part(B(0.055, 0.07, 0.2), mid, 0, 0, -0.27); // ハンドガード
-part(cyl(0.011, 0.3), dark, 0, 0.02, -0.32); // バレル
-part(cyl(0.016, 0.05), dark, 0, 0.02, -0.465); // マズル
-part(B(0.02, 0.008, 0.2), dark, 0, 0.039, -0.27); // レール
-part(B(0.006, 0.03, 0.006), dark, 0, 0.055, -0.34); // サイト
-part(B(0.04, 0.14, 0.07), poly, 0, -0.11, -0.04, 0.12); // マガジン
-part(B(0.035, 0.09, 0.045), poly, 0, -0.085, 0.1, -0.3); // グリップ
-part(B(0.045, 0.08, 0.2), poly, 0, -0.005, 0.27); // ストック
-part(B(0.045, 0.012, 0.07), dark, 0, 0.066, 0.04); // ドット土台
+part(B(0.06, 0.09, 0.34), dark, 0, 0, 0); 
+part(B(0.05, 0.015, 0.3), mid, 0, 0.0525, 0); 
+part(B(0.055, 0.07, 0.2), mid, 0, 0, -0.27); 
+part(cyl(0.011, 0.3), dark, 0, 0.02, -0.32); 
+part(cyl(0.016, 0.05), dark, 0, 0.02, -0.465); 
+part(B(0.02, 0.008, 0.2), dark, 0, 0.039, -0.27); 
+part(B(0.006, 0.03, 0.006), dark, 0, 0.055, -0.34); 
+part(B(0.04, 0.14, 0.07), poly, 0, -0.11, -0.04, 0.12); 
+part(B(0.035, 0.09, 0.045), poly, 0, -0.085, 0.1, -0.3); 
+part(B(0.045, 0.08, 0.2), poly, 0, -0.005, 0.27); 
+part(B(0.045, 0.012, 0.07), dark, 0, 0.066, 0.04); 
 part(B(0.006, 0.045, 0.03), dark, -0.021, 0.0945, 0.04);
 part(B(0.006, 0.045, 0.03), dark, 0.021, 0.0945, 0.04);
 part(B(0.048, 0.008, 0.03), dark, 0, 0.1175, 0.04);
