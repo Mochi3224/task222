@@ -3,9 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Apex Arena 3D - Multi Weapons</title>
-<link rel="preconnect" href="[https://fonts.googleapis.com](https://fonts.googleapis.com)">
-<link href="[https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;700&family=Noto+Sans+JP:wght@500;700&display=swap](https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;700&family=Noto+Sans+JP:wght@500;700&display=swap)" rel="stylesheet">
+<title>Apex Arena 3D - Online Realism</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;700&family=Noto+Sans+JP:wght@500;700&display=swap" rel="stylesheet">
 <style>
   :root { --bg: #10131a; --panel: #1a2030; --red: #ff4d3d; --steel: #8fa3b8; --ice: #e8f1f8; --sh: #4cc3ff; }
   * { box-sizing: border-box; }
@@ -51,16 +51,29 @@
 
 <div id="login" class="ov">
   <h1>APEX <b>ARENA</b></h1>
-  <p>マルチウェポン・アップデート</p>
-  <button id="btnLogin">ゲームを始める</button>
+  <p>オンライン・マルチウェポンモード</p>
+  <button id="btnLogin">Googleでログイン</button>
+  <p id="loginErr" style="color:var(--red);"></p>
 </div>
 
 <div id="menu" class="ov hide">
+  <div id="user">
+    <img id="uImg" src="" alt="icon">
+    <div style="text-align:left">
+      <b id="uName">Player</b>
+      <p id="uStat">読み込み中...</p>
+    </div>
+  </div>
   <p>レジェンドを選択</p>
   <div class="row" id="legends"></div>
   <p id="legDesc"></p>
   <div class="row">
     <button id="btnStart">出撃</button>
+    <button id="btnOut" class="alt">ログアウト</button>
+  </div>
+  <div class="card">
+    <b>ランキング (最多キル)</b>
+    <ol id="board"></ol>
   </div>
   <div class="card">
     <b>遊び方</b>
@@ -81,6 +94,7 @@
 <div id="over" class="ov hide">
   <h1>DOWNED</h1>
   <p id="result"></p>
+  <p id="saveMsg"></p>
   <button id="btnBack">メニューへ戻る</button>
 </div>
 
@@ -105,12 +119,88 @@
 </div>
 
 <script type="module">
-import * as THREE from '[https://unpkg.com/three@0.160.0/build/three.module.js](https://unpkg.com/three@0.160.0/build/three.module.js)';
+import * as THREE from 'https://unpkg.com/three@0.160.0/build/three.module.js';
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
+import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
+import { getFirestore, doc, getDoc, setDoc, collection, query, orderBy, limit, getDocs, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+
+// Firebaseの設定
+const firebaseConfig = {
+  apiKey: "AIzaSyDqkUSfY2goeCeFaCx3Z_1ZJU-NfnZMYPQ",
+  authDomain: "task111-9b8f8.firebaseapp.com",
+  projectId: "task111-9b8f8",
+  storageBucket: "task111-9b8f8.firebasestorage.app",
+  messagingSenderId: "194272968746",
+  appId: "1:194272968746:web:5ba2bf82290b9ba2838353"
+};
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
 
 const $ = id => document.getElementById(id);
 const show = (id, v) => $(id).classList.toggle('hide', !v);
 
-$('btnLogin').onclick = () => { show('login', 0); show('menu', 1); };$('btnBack').onclick = () => { show('over', 0); show('menu', 1); };
+/* ---------- 認証・保存 ---------- */
+let user = null, profile = {};
+
+$('btnLogin').onclick = async () => {$('loginErr').textContent = '';
+  try { await signInWithPopup(auth, new GoogleAuthProvider()); } 
+  catch(e) { $('loginErr').textContent = 'ログイン失敗 (サーバー上で実行してください): ' + (e.code || e.message); }
+};
+$('btnOut').onclick = () => signOut(auth);
+
+onAuthStateChanged(auth, async u => {
+  user = u;
+  if (!u) { show('login', 1); show('menu', 0); return; }
+  show('login', 0); show('menu', 1);
+  $('uName').textContent = u.displayName \vert{}\vert{} 'Player';$('uImg').src = u.photoURL || '';
+  await loadProfile(); loadBoard();
+});
+
+async function loadProfile() {
+  try {
+    const s = await getDoc(doc(db, 'players', user.uid));
+    profile = s.exists() ? s.data() : {};
+  } catch(e) { profile = {}; }
+  $('uStat').textContent = `出撃 ${profile.games || 0}回 / 総キル ${profile.totalKills || 0} / 最高ウェーブ ${profile.bestWave || 0}`;
+}
+
+async function loadBoard() {
+  const ol = $('board'); ol.innerHTML = '';
+  try {
+    const qs = await getDocs(query(collection(db, 'players'), orderBy('bestKills', 'desc'), limit(5)));
+    qs.forEach(d => {
+      const x = d.data();
+      const li = document.createElement('li');
+      li.textContent = `${x.name || 'Player'} - ${x.bestKills || 0}キル`;
+      ol.appendChild(li);
+    });
+    if (!ol.children.length) ol.innerHTML = '<li>記録なし</li>';
+  } catch(e) { ol.innerHTML = '<li>ランキング取得エラー</li>'; }
+}
+
+async function saveResult(kills, wave) {
+  $('saveMsg').textContent = '保存中...';
+  try {
+    const ref = doc(db, 'players', user.uid);
+    const s = await getDoc(ref);
+    const o = s.exists() ? s.data() : {};
+    await setDoc(ref, {
+      name: user.displayName || 'Player', photo: user.photoURL || '',
+      bestKills: Math.max(o.bestKills || 0, kills), bestWave: Math.max(o.bestWave || 0, wave),
+      totalKills: (o.totalKills || 0) + kills, games: (o.games || 0) + 1, legend: G.legend, updatedAt: serverTimestamp()
+    });
+    $('saveMsg').textContent = '戦績を保存しました';
+  } catch(e) { $('saveMsg').textContent = '保存失敗: ' + (e.code || e.message); }
+}
+
+/* ---------- 武器データ・レジェンド ---------- */
+const WEP = [
+  { n: 'アサルトライフル', mag: 30, fr: 0.1,  kick: 0.04, dmg: 18, hdmg: 36,  fov: 45, spd: 1.0, rld: 1.6 },
+  { n: 'サブマシンガン',   mag: 40, fr: 0.05, kick: 0.03, dmg: 11, hdmg: 22,  fov: 60, spd: 1.1, rld: 1.2 },
+  { n: 'スナイパー',       mag: 5,  fr: 1.2,  kick: 0.25, dmg: 75, hdmg: 150, fov: 15, spd: 0.9, rld: 2.5 }
+];
 
 const LEG = {
   wraith: { n: 'レイス', d: 'Q: 前方へ瞬間ダッシュ(CT 6秒)', cd: 6 },
@@ -129,13 +219,7 @@ function drawLegends() {
 }
 drawLegends();
 
-/* ---------- 武器データ定義 ---------- */
-const WEP = [
-  { n: 'アサルトライフル', mag: 30, fr: 0.1,  kick: 0.04, dmg: 18, hdmg: 36,  fov: 45, spd: 1.0, rld: 1.6 },
-  { n: 'サブマシンガン',   mag: 40, fr: 0.05, kick: 0.03, dmg: 11, hdmg: 22,  fov: 60, spd: 1.1, rld: 1.2 },
-  { n: 'スナイパー',       mag: 5,  fr: 1.2,  kick: 0.25, dmg: 75, hdmg: 150, fov: 15, spd: 0.9, rld: 2.5 }
-];
-
+/* ---------- 3Dシーン構築 ---------- */
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x75a3cd);
 scene.fog = new THREE.FogExp2(0x75a3cd, 0.015);
@@ -253,6 +337,8 @@ $('btnStart').onclick = () => {
   show('menu', 0); show('over', 0); show('hud', 1); show('pause', 0); nextWave(); ren.domElement.requestPointerLock();
 };
 
+$('btnBack').onclick = async () => { show('over', 0); show('menu', 1); await loadProfile(); loadBoard(); };
+
 document.addEventListener('pointerlockchange', () => { locked = document.pointerLockElement === ren.domElement; if (G.running && !G.over) show('pause', !locked); });
 window.addEventListener('mousemove', e => { if (!locked) return; const k = 0.0022 * (1 - 0.7 * P.adsT); P.yaw -= e.movementX * k; P.pitch = Math.max(-1.45, Math.min(1.45, P.pitch - e.movementY * k)); });
 window.addEventListener('mousedown', e => { if (e.button === 0) fire = true; if (e.button === 2) adsHeld = true; });
@@ -305,6 +391,14 @@ function shoot() {
   } 
   scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([from, end]), new THREE.LineBasicMaterial({ color: 0xffe27a, transparent: true, opacity: 0.6 })));
   tracers.push({ l: scene.children[scene.children.length - 1], t: 0.04 });
+}
+
+async function die() {
+  G.over = true; G.running = false; adsHeld = fire = false;
+  cam.fov = 75; cam.updateProjectionMatrix(); document.exitPointerLock();
+  show('hud', 0); show('pause', 0); show('over', 1);
+  $('result').textContent = `ウェーブ ${P.wave} / キル ${P.kills}`;
+  await saveResult(P.kills, P.wave);
 }
 
 function update(dt) {
@@ -369,8 +463,8 @@ function update(dt) {
     if (b.m.position.distanceTo(eye) < 0.9) {
       const dmg = Math.min(10, 5 + P.wave * 0.5);
       const a = Math.min(P.sh, dmg); P.sh -= a; P.hp -= (dmg - a);
-      $('flash').style.opacity = 1; setTimeout(() =>$('flash').style.opacity = 0, 120);
-      if (P.hp <= 0) { G.over = true; G.running = false; cam.fov = 75; cam.updateProjectionMatrix(); document.exitPointerLock(); show('hud', 0); show('over', 1); $('result').textContent = `ウェーブ ${P.wave} / キル ${P.kills}`; }
+      $('flash').style.opacity = 1; setTimeout(() => $('flash').style.opacity = 0, 120);
+      if (P.hp <= 0) die();
       scene.remove(b.m); return false;
     }
     const gy = collide(b.m.position, 0.1, b.m.position.y);
@@ -394,7 +488,7 @@ function update(dt) {
   $('scope').style.opacity = P.adsT;
   $('cross').style.visibility = P.adsT > 0.05 ? 'hidden' : 'visible';$('sniper-cross').style.opacity = (P.wIdx === 2 && P.adsT > 0.85) ? 1 : 0;
   
-  $('hp').firstChild.style.width = Math.max(0, P.hp) + '\%';$('sh').firstChild.style.width = P.sh * 2 + '%';
+  $('hp').firstChild.style.width = Math.max(0, P.hp) + '%';$('sh').firstChild.style.width = P.sh * 2 + '%';
   $('am').textContent = P.ammo[P.wIdx];$('reload').textContent = P.reload ? 'リロード中…' : `${w.mag}発マガジン`;
   $('wave').textContent = `ウェーブ ${P.wave}`; $('kills').textContent = `キル ${P.kills}`;
 }
